@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest . --typescript --tailwind --app --no-src-dir --no-turbopack --import-alias \"@/*\" --no-eslint --yes)",
+      "Bash(npx create-next-app@latest app-temp --typescript --tailwind --app --no-src-dir --turbopack --import-alias \"@/*\" --no-eslint --yes)",
+      "Bash(shopt -s dotglob)",
+      "Bash(mv app-temp/* .)",
+      "Bash(setopt dotglob *)",
+      "Bash(npm install *)",
+      "Bash(npx shadcn@latest init -d --base radix)",
+      "Bash(npx shadcn@latest add input card label table -y)",
+      "Bash(npx shadcn@latest add select -y)",
+      "Bash(npm run *)"
+    ]
+  }
+}
