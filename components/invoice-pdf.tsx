@@ -5,6 +5,7 @@ import {
   Page,
   Text,
   View,
+  Image,
   StyleSheet,
 } from "@react-pdf/renderer";
 import { BUSINESS, CURRENCY } from "@/lib/catalog";
@@ -22,6 +23,12 @@ export type InvoiceData = {
   customerName: string;
   customerAddress: string;
   lines: InvoiceLine[];
+  /**
+   * Data URL (base64) of the business logo. Passed from the client after
+   * loading /logo.png — kept optional so the PDF renders fine when the file
+   * is missing.
+   */
+  logoDataUrl?: string;
 };
 
 const styles = StyleSheet.create({
@@ -33,16 +40,24 @@ const styles = StyleSheet.create({
   },
   letterhead: {
     borderBottomWidth: 2,
-    borderBottomColor: "#111",
+    borderBottomColor: "#14532d",
     paddingBottom: 12,
     marginBottom: 16,
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
   },
-  brand: { flexDirection: "column" },
-  brandName: { fontSize: 20, fontWeight: 700, marginBottom: 2 },
-  brandTagline: { fontSize: 9, color: "#555" },
+  brand: { flexDirection: "row", alignItems: "center", gap: 10 },
+  logo: { width: 40, height: 40, objectFit: "contain" },
+  brandText: { flexDirection: "column" },
+  brandName: {
+    fontSize: 22,
+    fontWeight: 700,
+    marginBottom: 2,
+    color: "#14532d",
+    letterSpacing: 1,
+  },
+  brandTagline: { fontSize: 9, color: "#555", fontStyle: "italic" },
   contactBlock: { flexDirection: "column", textAlign: "right" },
   contactLine: { fontSize: 9, color: "#333", marginBottom: 1 },
   invoiceTitle: {
@@ -128,15 +143,24 @@ export function InvoicePDF({ data }: { data: InvoiceData }) {
       <Page size="A4" style={styles.page}>
         <View style={styles.letterhead}>
           <View style={styles.brand}>
-            <Text style={styles.brandName}>{BUSINESS.name}</Text>
-            <Text style={styles.brandTagline}>{BUSINESS.tagline}</Text>
+            {data.logoDataUrl ? (
+              <Image style={styles.logo} src={data.logoDataUrl} />
+            ) : null}
+            <View style={styles.brandText}>
+              <Text style={styles.brandName}>{BUSINESS.name}</Text>
+              <Text style={styles.brandTagline}>{BUSINESS.tagline}</Text>
+            </View>
           </View>
           <View style={styles.contactBlock}>
             <Text style={styles.contactLine}>{BUSINESS.addressLine1}</Text>
             <Text style={styles.contactLine}>{BUSINESS.addressLine2}</Text>
             <Text style={styles.contactLine}>{BUSINESS.phone}</Text>
-            <Text style={styles.contactLine}>{BUSINESS.email}</Text>
-            <Text style={styles.contactLine}>GSTIN: {BUSINESS.gstin}</Text>
+            {BUSINESS.email ? (
+              <Text style={styles.contactLine}>{BUSINESS.email}</Text>
+            ) : null}
+            {BUSINESS.vat ? (
+              <Text style={styles.contactLine}>VAT: {BUSINESS.vat}</Text>
+            ) : null}
           </View>
         </View>
 

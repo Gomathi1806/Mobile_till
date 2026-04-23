@@ -1,8 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { pdf } from "@react-pdf/renderer";
+import { toast } from "sonner";
 import { Plus, Trash2, FileDown } from "lucide-react";
+
+import { SiteHeader } from "@/components/site-header";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,14 +59,40 @@ function todayISO() {
 }
 
 export default function Home() {
-  const [invoiceNumber, setInvoiceNumber] = useState(newInvoiceNumber);
+  const [invoiceNumber] = useState(newInvoiceNumber);
   const [invoiceDate, setInvoiceDate] = useState(todayISO);
   const [customerName, setCustomerName] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([
     { uid: makeUid(), itemId: "", qty: "1", rate: "" },
   ]);
   const [generating, setGenerating] = useState(false);
+  const [logoDataUrl, setLogoDataUrl] = useState<string | undefined>(undefined);
+
+  // Load /logo.png once, convert to a data URL. Single source of truth for
+  // both the page header and the embedded PDF logo. If the file is missing
+  // we leave logoDataUrl undefined and both surfaces show the "FM" fallback.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/logo.png", { cache: "no-cache" });
+        if (!res.ok) return; // 404 → silent fallback
+        const blob = await res.blob();
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (!cancelled) setLogoDataUrl(reader.result as string);
+        };
+        reader.readAsDataURL(blob);
+      } catch {
+        /* silent — fallback is the monogram */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const total = useMemo(
     () =>
@@ -113,6 +142,8 @@ export default function Home() {
   async function handleSubmit() {
     if (!canSubmit) return;
     setGenerating(true);
+    const trimmedEmail = customerEmail.trim();
+
     try {
       const data: InvoiceData = {
         invoiceNumber,
@@ -120,8 +151,13 @@ export default function Home() {
         customerName,
         customerAddress,
         lines: validLines,
+        logoDataUrl,
       };
+
+      // 1) Render PDF in the browser
       const blob = await pdf(<InvoicePDF data={data} />).toBlob();
+
+      // 2) Trigger local download immediately
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -130,14 +166,57 @@ export default function Home() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+
+      // 3) Upload + email in the background
+      const fd = new FormData();
+      fd.append("pdf", blob, `${invoiceNumber}.pdf`);
+      fd.append("invoiceNumber", invoiceNumber);
+      fd.append("customerName", customerName);
+      fd.append("customerEmail", trimmedEmail);
+      fd.append("total", `${CURRENCY} ${total.toFixed(2)}`);
+
+      const res = await fetch("/api/invoice", { method: "POST", body: fd });
+      const result = (await res.json()) as {
+        ok: boolean;
+        blobUrl: string | null;
+        blobError: string | null;
+        emailId: string | null;
+        emailError: string | null;
+      };
+
+      if (result.blobUrl) {
+        toast.success("Saved to Vercel Blob", {
+          description: "Invoice PDF uploaded.",
+          action: {
+            label: "Open",
+            onClick: () => window.open(result.blobUrl!, "_blank"),
+          },
+        });
+      } else if (result.blobError) {
+        toast.warning("Blob storage skipped", { description: result.blobError });
+      }
+
+      if (trimmedEmail) {
+        if (result.emailId) {
+          toast.success("Email sent", { description: `Sent to ${trimmedEmail}` });
+        } else if (result.emailError) {
+          toast.error("Email failed", { description: result.emailError });
+        }
+      }
+    } catch (e) {
+      toast.error("Something went wrong", {
+        description: e instanceof Error ? e.message : "Unknown error",
+      });
     } finally {
       setGenerating(false);
     }
   }
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-8">
-      <Card>
+    <>
+      <SiteHeader logoDataUrl={logoDataUrl} />
+      <main className="mx-auto w-full max-w-4xl px-4 pb-8">
+        <Card>
         <CardHeader>
           <CardTitle>Mobile Till — Invoice Generator</CardTitle>
           <CardDescription>
@@ -151,7 +230,9 @@ export default function Home() {
               <Input
                 id="invoice-number"
                 value={invoiceNumber}
-                onChange={(e) => setInvoiceNumber(e.target.value)}
+                readOnly
+                aria-readonly
+                className="bg-muted/40 cursor-not-allowed"
               />
             </div>
             <div className="space-y-2">
@@ -173,6 +254,16 @@ export default function Home() {
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="customer-email">Customer email</Label>
+              <Input
+                id="customer-email"
+                type="email"
+                placeholder="customer@example.com (optional)"
+                value={customerEmail}
+                onChange={(e) => setCustomerEmail(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="customer-address">Customer address</Label>
               <Input
                 id="customer-address"
@@ -213,7 +304,18 @@ export default function Home() {
                         <TableCell>
                           <Select
                             value={l.itemId}
-                            onValueChange={(v) => updateLine(l.uid, { itemId: v })}
+                            onValueChange={(v) => {
+                              const picked = CATALOG.find((c) => c.id === v);
+                              updateLine(l.uid, {
+                                itemId: v,
+                                rate:
+                                  l.rate && Number(l.rate) > 0
+                                    ? l.rate
+                                    : picked?.defaultRate != null
+                                      ? String(picked.defaultRate)
+                                      : l.rate,
+                              });
+                            }}
                           >
                             <SelectTrigger className="w-full">
                               <SelectValue placeholder="Select an item" />
@@ -287,7 +389,8 @@ export default function Home() {
             </Button>
           </div>
         </CardContent>
-      </Card>
-    </main>
+        </Card>
+      </main>
+    </>
   );
 }
