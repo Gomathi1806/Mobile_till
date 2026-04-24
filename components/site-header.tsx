@@ -20,12 +20,12 @@ export function SiteHeader({ logoDataUrl }: Props) {
             <img
               src={logoDataUrl}
               alt={`${BUSINESS.name} logo`}
-              className="h-12 w-12 object-contain sm:h-14 sm:w-14"
+              className="h-20 w-20 object-contain sm:h-24 sm:w-24"
             />
           ) : (
             <div
               aria-label={`${BUSINESS.name} monogram`}
-              className="flex h-12 w-12 items-center justify-center rounded-md bg-green-900 text-sm font-bold text-white sm:h-14 sm:w-14"
+              className="flex h-20 w-20 items-center justify-center rounded-md bg-green-900 text-base font-bold text-white sm:h-24 sm:w-24"
             >
               FM
             </div>
