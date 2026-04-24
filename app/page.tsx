@@ -25,20 +25,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { ItemCombobox } from "@/components/item-combobox";
 
-import { CATALOG, CURRENCY } from "@/lib/catalog";
+import { CURRENCY } from "@/lib/catalog";
 import { InvoicePDF, type InvoiceData, type InvoiceLine } from "@/components/invoice-pdf";
 
 type DraftLine = {
   uid: string;
-  itemId: string;
+  /** Catalog id if the item came from CATALOG, otherwise null for custom items. */
+  itemId: string | null;
+  /** Display name — source of truth for both UI and the PDF line. */
+  name: string;
   qty: string;
   rate: string;
 };
@@ -65,7 +62,7 @@ export default function Home() {
   const [customerAddress, setCustomerAddress] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([
-    { uid: makeUid(), itemId: "", qty: "1", rate: "" },
+    { uid: makeUid(), itemId: null, name: "", qty: "1", rate: "" },
   ]);
   const [generating, setGenerating] = useState(false);
   const [logoDataUrl, setLogoDataUrl] = useState<string | undefined>(undefined);
@@ -111,7 +108,7 @@ export default function Home() {
   function addLine() {
     setLines((prev) => [
       ...prev,
-      { uid: makeUid(), itemId: "", qty: "1", rate: "" },
+      { uid: makeUid(), itemId: null, name: "", qty: "1", rate: "" },
     ]);
   }
 
@@ -121,11 +118,11 @@ export default function Home() {
 
   const validLines: InvoiceLine[] = lines
     .map((l): InvoiceLine | null => {
-      const item = CATALOG.find((c) => c.id === l.itemId);
+      const name = l.name.trim();
       const qty = Number(l.qty);
       const rate = Number(l.rate);
       if (
-        !item ||
+        !name ||
         !Number.isFinite(qty) ||
         qty <= 0 ||
         !Number.isFinite(rate) ||
@@ -133,7 +130,7 @@ export default function Home() {
       ) {
         return null;
       }
-      return { id: l.uid, name: item.name, qty, rate };
+      return { id: l.uid, name, qty, rate };
     })
     .filter((x): x is InvoiceLine => x !== null);
 
@@ -302,32 +299,24 @@ export default function Home() {
                     return (
                       <TableRow key={l.uid}>
                         <TableCell>
-                          <Select
-                            value={l.itemId}
-                            onValueChange={(v) => {
-                              const picked = CATALOG.find((c) => c.id === v);
+                          <ItemCombobox
+                            value={l.name}
+                            onSelectCatalog={(item) =>
                               updateLine(l.uid, {
-                                itemId: v,
+                                itemId: item.id,
+                                name: item.name,
                                 rate:
                                   l.rate && Number(l.rate) > 0
                                     ? l.rate
-                                    : picked?.defaultRate != null
-                                      ? String(picked.defaultRate)
+                                    : item.defaultRate != null
+                                      ? String(item.defaultRate)
                                       : l.rate,
-                              });
-                            }}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Select an item" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {CATALOG.map((c) => (
-                                <SelectItem key={c.id} value={c.id}>
-                                  {c.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                              })
+                            }
+                            onSelectCustom={(name) =>
+                              updateLine(l.uid, { itemId: null, name })
+                            }
+                          />
                         </TableCell>
                         <TableCell>
                           <Input

@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   brand: { flexDirection: "row", alignItems: "center", gap: 10 },
-  logo: { width: 40, height: 40, objectFit: "contain" },
+  logo: { width: 50, height: 50, objectFit: "contain" },
   brandText: { flexDirection: "column" },
   brandName: {
     fontSize: 22,

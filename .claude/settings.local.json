@@ -15,7 +15,8 @@
       "Bash(brew install *)",
       "Bash(pdftotext -layout /Users/karthik/Downloads/KWL649.pdf -)",
       "Bash(grep -iE 'friendly|logo|\\\\.png$|\\\\.jpg$|\\\\.jpeg$')",
-      "Bash(sips -s format png /Users/karthik/FriendlyMart_mobile_till/public/logo.png --out /Users/karthik/FriendlyMart_mobile_till/public/logo.png)"
+      "Bash(sips -s format png /Users/karthik/FriendlyMart_mobile_till/public/logo.png --out /Users/karthik/FriendlyMart_mobile_till/public/logo.png)",
+      "Bash(npx shadcn@latest add popover command -y)"
     ]
   }
 }
