@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Friendly Mart — Mobile Till
 
-## Getting Started
+Multi-platform mobile till (POS) and invoice generator for **FRIENDLY MART**,
+59B London Road, Grantham, NG31 6ET.
 
-First, run the development server:
+## Repository layout
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+.
+├── web/      ← Next.js website + Progressive Web App
+└── mobile/   ← (planned) Capacitor wrapper for iOS + Android app stores
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The two packages are independent — `web/` deploys to Vercel as a normal
+Next.js app, while `mobile/` will eventually consume the same UI inside a
+native iOS / Android shell.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### `web/` — Next.js site + PWA
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Runs the till in any modern browser, and installs to the home screen as a
+fullscreen PWA on iPhone, iPad, and Android.
 
-## Learn More
+```bash
+cd web
+npm install
+npm run dev      # local dev server
+npm run build    # production build
+```
 
-To learn more about Next.js, take a look at the following resources:
+Key bits:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Next.js 16 (App Router, Turbopack)
+- React 19, Tailwind v4, shadcn/ui
+- `@react-pdf/renderer` for client-side PDF generation
+- `/api/invoice` route — uploads to Vercel Blob + emails via Resend
+- `app/manifest.ts` + `app/icon.png` + `app/apple-icon.png` make it
+  installable as a PWA
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+See [`web/README.md`](./web/README.md) for the original Next.js bootstrap
+notes and [`web/AGENTS.md`](./web/AGENTS.md) for agent-specific guidance.
 
-## Deploy on Vercel
+### `mobile/` — Capacitor wrapper *(not yet scaffolded)*
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+When we're ready to ship to the App Store and Play Store, this folder will
+hold a Capacitor project that wraps the deployed `web/` build inside a
+native shell. The web code is reused verbatim — no React Native rewrite.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Until then, the PWA in `web/` is the way to install the till on a phone or
+tablet (Safari → Share → *Add to Home Screen*; Chrome → *Install app*).

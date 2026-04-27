@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
@@ -16,6 +16,29 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Friendly Mart — Mobile Till",
   description: "Invoice generator for Friendly Mart",
+  applicationName: "FM Till",
+  // iOS PWA: makes "Add to Home Screen" launch fullscreen with no Safari
+  // chrome and emits the right <meta name="apple-mobile-web-app-*"> tags.
+  appleWebApp: {
+    capable: true,
+    title: "FM Till",
+    statusBarStyle: "black-translucent",
+  },
+  formatDetection: {
+    // The phone in the header isn't meant to be auto-linked.
+    telephone: false,
+  },
+};
+
+// Viewport must be a separate export per Next.js 16. Disable user-scaling so
+// double-tapping a tile doesn't accidentally zoom the till on mobile.
+export const viewport: Viewport = {
+  themeColor: "#14532d",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

@@ -16,7 +16,14 @@
       "Bash(pdftotext -layout /Users/karthik/Downloads/KWL649.pdf -)",
       "Bash(grep -iE 'friendly|logo|\\\\.png$|\\\\.jpg$|\\\\.jpeg$')",
       "Bash(sips -s format png /Users/karthik/FriendlyMart_mobile_till/public/logo.png --out /Users/karthik/FriendlyMart_mobile_till/public/logo.png)",
-      "Bash(npx shadcn@latest add popover command -y)"
+      "Bash(npx shadcn@latest add popover command -y)",
+      "Bash(grep -n -A 15 \"### \\\\`appleWebApp\\\\`\" /Users/karthik/FriendlyMart_mobile_till/node_modules/next/dist/docs/01-app/03-api-reference/04-functions/generate-metadata.md)",
+      "Bash(sips -z 192 192 public/logo.png --out app/icon.png)",
+      "Bash(sips -z 180 180 public/logo.png --out app/apple-icon.png)",
+      "Bash(sips -z 192 192 public/logo.png --out public/icon-192.png)",
+      "Bash(sips -z 512 512 public/logo.png --out public/icon-512.png)",
+      "Bash(grep -v '^d.*\\\\.\\\\.$')",
+      "Bash(grep -v '^d.*\\\\.$')"
     ]
   }
 }
