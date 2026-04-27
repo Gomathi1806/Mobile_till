@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { pdf } from "@react-pdf/renderer";
 import { toast } from "sonner";
-import { Plus, Trash2, FileDown } from "lucide-react";
+import { Minus, Plus, Trash2, FileDown } from "lucide-react";
 
 import { SiteHeader } from "@/components/site-header";
 
@@ -17,25 +17,22 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { ItemCombobox } from "@/components/item-combobox";
 
-import { CURRENCY } from "@/lib/catalog";
+import { ProductTiles } from "@/components/product-tiles";
+import { CustomItemDialog } from "@/components/custom-item-dialog";
+
+import { CURRENCY, type CatalogItem } from "@/lib/catalog";
 import { InvoicePDF, type InvoiceData, type InvoiceLine } from "@/components/invoice-pdf";
 
 type DraftLine = {
   uid: string;
-  /** Catalog id if the item came from CATALOG, otherwise null for custom items. */
+  /** Catalog id if the line came from a tile, otherwise null for custom items. */
   itemId: string | null;
-  /** Display name — source of truth for both UI and the PDF line. */
+  /** Display name — source of truth for both the UI ticket and the PDF line. */
   name: string;
+  /** Emoji or undefined — used as the thumbnail in the receipt list. */
+  emoji?: string;
+  /** Stored as strings so empty + invalid inputs don't get coerced to NaN/0. */
   qty: string;
   rate: string;
 };
@@ -61,9 +58,8 @@ export default function Home() {
   const [customerName, setCustomerName] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
-  const [lines, setLines] = useState<DraftLine[]>([
-    { uid: makeUid(), itemId: null, name: "", qty: "1", rate: "" },
-  ]);
+  const [lines, setLines] = useState<DraftLine[]>([]);
+  const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [logoDataUrl, setLogoDataUrl] = useState<string | undefined>(undefined);
 
@@ -105,15 +101,58 @@ export default function Home() {
     setLines((prev) => prev.map((l) => (l.uid === uid ? { ...l, ...patch } : l)));
   }
 
-  function addLine() {
+  function removeLine(uid: string) {
+    setLines((prev) => prev.filter((l) => l.uid !== uid));
+  }
+
+  /**
+   * Tap a catalog tile. POS pattern: if the same item is already on the
+   * ticket, bump its qty rather than appending a duplicate line.
+   */
+  function addCatalogItem(item: CatalogItem) {
+    setLines((prev) => {
+      const existing = prev.find((l) => l.itemId === item.id);
+      if (existing) {
+        const nextQty = (Number(existing.qty) || 0) + 1;
+        return prev.map((l) =>
+          l.uid === existing.uid ? { ...l, qty: String(nextQty) } : l,
+        );
+      }
+      return [
+        ...prev,
+        {
+          uid: makeUid(),
+          itemId: item.id,
+          name: item.name,
+          emoji: item.emoji,
+          qty: "1",
+          rate: item.defaultRate != null ? String(item.defaultRate) : "",
+        },
+      ];
+    });
+  }
+
+  function addCustomItem(name: string, rate: number) {
     setLines((prev) => [
       ...prev,
-      { uid: makeUid(), itemId: null, name: "", qty: "1", rate: "" },
+      {
+        uid: makeUid(),
+        itemId: null,
+        name,
+        qty: "1",
+        rate: String(rate),
+      },
     ]);
   }
 
-  function removeLine(uid: string) {
-    setLines((prev) => (prev.length === 1 ? prev : prev.filter((l) => l.uid !== uid)));
+  function bumpQty(uid: string, delta: number) {
+    setLines((prev) =>
+      prev.map((l) => {
+        if (l.uid !== uid) return l;
+        const next = Math.max(1, (Number(l.qty) || 0) + delta);
+        return { ...l, qty: String(next) };
+      }),
+    );
   }
 
   const validLines: InvoiceLine[] = lines
@@ -212,123 +251,159 @@ export default function Home() {
   return (
     <>
       <SiteHeader logoDataUrl={logoDataUrl} />
-      <main className="mx-auto w-full max-w-4xl px-4 pb-8">
+      <main className="mx-auto w-full max-w-5xl px-4 pb-8">
         <Card>
-        <CardHeader>
-          <CardTitle>Mobile Till — Invoice Generator</CardTitle>
-          <CardDescription>
-            Pick items, enter quantity and rate, then generate a PDF invoice.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="invoice-number">Invoice #</Label>
-              <Input
-                id="invoice-number"
-                value={invoiceNumber}
-                readOnly
-                aria-readonly
-                className="bg-muted/40 cursor-not-allowed"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="invoice-date">Date</Label>
-              <Input
-                id="invoice-date"
-                type="date"
-                value={invoiceDate}
-                onChange={(e) => setInvoiceDate(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="customer-name">Customer name</Label>
-              <Input
-                id="customer-name"
-                placeholder="Walk-in customer"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="customer-email">Customer email</Label>
-              <Input
-                id="customer-email"
-                type="email"
-                placeholder="customer@example.com (optional)"
-                value={customerEmail}
-                onChange={(e) => setCustomerEmail(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="customer-address">Customer address</Label>
-              <Input
-                id="customer-address"
-                placeholder="Optional"
-                value={customerAddress}
-                onChange={(e) => setCustomerAddress(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Line items</Label>
-              <Button type="button" size="sm" variant="outline" onClick={addLine}>
-                <Plus className="h-4 w-4" />
-                Add row
-              </Button>
+          <CardHeader>
+            <CardTitle>Mobile Till — Invoice Generator</CardTitle>
+            <CardDescription>
+              Tap an item tile to add it to the ticket. Tap the same tile again
+              to bump quantity.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Invoice + customer details — kept compact above the till. */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="invoice-number">Invoice #</Label>
+                <Input
+                  id="invoice-number"
+                  value={invoiceNumber}
+                  readOnly
+                  aria-readonly
+                  className="bg-muted/40 cursor-not-allowed"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="invoice-date">Date</Label>
+                <Input
+                  id="invoice-date"
+                  type="date"
+                  value={invoiceDate}
+                  onChange={(e) => setInvoiceDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="customer-name">Customer name</Label>
+                <Input
+                  id="customer-name"
+                  placeholder="Walk-in customer"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="customer-email">Customer email</Label>
+                <Input
+                  id="customer-email"
+                  type="email"
+                  placeholder="customer@example.com (optional)"
+                  value={customerEmail}
+                  onChange={(e) => setCustomerEmail(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="customer-address">Customer address</Label>
+                <Input
+                  id="customer-address"
+                  placeholder="Optional"
+                  value={customerAddress}
+                  onChange={(e) => setCustomerAddress(e.target.value)}
+                />
+              </div>
             </div>
 
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[45%]">Item</TableHead>
-                    <TableHead className="w-[15%]">Qty</TableHead>
-                    <TableHead className="w-[20%]">Rate ({CURRENCY})</TableHead>
-                    <TableHead className="w-[15%] text-right">Amount</TableHead>
-                    <TableHead className="w-[5%]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+            {/* Tile picker — always visible, touch-first. */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Items</Label>
+                <span className="text-xs text-muted-foreground">
+                  Tap to add · tap again to bump qty
+                </span>
+              </div>
+              <ProductTiles
+                onPickCatalog={addCatalogItem}
+                onPickCustom={() => setCustomDialogOpen(true)}
+              />
+            </div>
+
+            {/* Receipt — selected lines with stepper + rate + amount. */}
+            <div className="space-y-2">
+              <Label>Ticket</Label>
+              {lines.length === 0 ? (
+                <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  Nothing on the ticket yet. Tap an item tile above to start.
+                </div>
+              ) : (
+                <ul className="divide-y rounded-md border">
                   {lines.map((l) => {
                     const qty = Number(l.qty) || 0;
                     const rate = Number(l.rate) || 0;
                     const amount = qty * rate;
                     return (
-                      <TableRow key={l.uid}>
-                        <TableCell>
-                          <ItemCombobox
-                            value={l.name}
-                            onSelectCatalog={(item) =>
-                              updateLine(l.uid, {
-                                itemId: item.id,
-                                name: item.name,
-                                rate:
-                                  l.rate && Number(l.rate) > 0
-                                    ? l.rate
-                                    : item.defaultRate != null
-                                      ? String(item.defaultRate)
-                                      : l.rate,
-                              })
-                            }
-                            onSelectCustom={(name) =>
-                              updateLine(l.uid, { itemId: null, name })
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>
+                      <li
+                        key={l.uid}
+                        className="flex flex-wrap items-center gap-3 p-3"
+                      >
+                        <div
+                          aria-hidden="true"
+                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-muted text-2xl"
+                        >
+                          {l.emoji ?? "🧾"}
+                        </div>
+
+                        <div className="min-w-0 flex-1 basis-[160px]">
+                          <p className="truncate text-sm font-medium">
+                            {l.name}
+                          </p>
+                          {l.itemId == null ? (
+                            <p className="text-[11px] uppercase tracking-wide text-primary">
+                              Custom
+                            </p>
+                          ) : null}
+                        </div>
+
+                        {/* Qty stepper — 44pt tap targets, big numerals. */}
+                        <div className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-11 w-11"
+                            onClick={() => bumpQty(l.uid, -1)}
+                            disabled={qty <= 1}
+                            aria-label={`Decrease ${l.name}`}
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
                           <Input
                             type="number"
                             inputMode="numeric"
                             min={1}
                             step={1}
                             value={l.qty}
-                            onChange={(e) => updateLine(l.uid, { qty: e.target.value })}
+                            onChange={(e) =>
+                              updateLine(l.uid, { qty: e.target.value })
+                            }
+                            className="h-11 w-16 text-center text-base tabular-nums"
+                            aria-label={`Quantity for ${l.name}`}
                           />
-                        </TableCell>
-                        <TableCell>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-11 w-11"
+                            onClick={() => bumpQty(l.uid, +1)}
+                            aria-label={`Increase ${l.name}`}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        {/* Rate — editable so the cashier can override. */}
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground">
+                            {CURRENCY}
+                          </span>
                           <Input
                             type="number"
                             inputMode="decimal"
@@ -336,50 +411,65 @@ export default function Home() {
                             step="0.01"
                             placeholder="0.00"
                             value={l.rate}
-                            onChange={(e) => updateLine(l.uid, { rate: e.target.value })}
+                            onChange={(e) =>
+                              updateLine(l.uid, { rate: e.target.value })
+                            }
+                            className="h-11 w-24 text-base tabular-nums"
+                            aria-label={`Rate for ${l.name}`}
                           />
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
+                        </div>
+
+                        <div className="ml-auto text-right text-base font-semibold tabular-nums">
                           {CURRENCY} {amount.toFixed(2)}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => removeLine(l.uid)}
-                            disabled={lines.length === 1}
-                            aria-label="Remove row"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-11 w-11 text-muted-foreground hover:text-destructive"
+                          onClick={() => removeLine(l.uid)}
+                          aria-label={`Remove ${l.name}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </li>
                     );
                   })}
-                </TableBody>
-              </Table>
+                </ul>
+              )}
             </div>
-          </div>
 
-          <div className="flex items-center justify-between border-t pt-4">
-            <div className="text-sm text-muted-foreground">
-              {validLines.length} valid line{validLines.length === 1 ? "" : "s"}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+              <div className="text-sm text-muted-foreground">
+                {validLines.length} valid line
+                {validLines.length === 1 ? "" : "s"}
+              </div>
+              <div className="text-xl font-semibold tabular-nums">
+                Total: {CURRENCY} {total.toFixed(2)}
+              </div>
             </div>
-            <div className="text-lg font-semibold tabular-nums">
-              Total: {CURRENCY} {total.toFixed(2)}
-            </div>
-          </div>
 
-          <div className="flex justify-end">
-            <Button onClick={handleSubmit} disabled={!canSubmit} size="lg">
-              <FileDown className="h-4 w-4" />
-              {generating ? "Generating…" : "Submit & download PDF"}
-            </Button>
-          </div>
-        </CardContent>
+            <div className="flex justify-end">
+              <Button
+                onClick={handleSubmit}
+                disabled={!canSubmit}
+                size="lg"
+                className="h-12 text-base"
+              >
+                <FileDown className="h-4 w-4" />
+                {generating ? "Generating…" : "Submit & download PDF"}
+              </Button>
+            </div>
+          </CardContent>
         </Card>
       </main>
+
+      <CustomItemDialog
+        open={customDialogOpen}
+        onOpenChange={setCustomDialogOpen}
+        onConfirm={addCustomItem}
+      />
     </>
   );
 }
