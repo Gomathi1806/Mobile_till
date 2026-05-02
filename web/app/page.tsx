@@ -20,8 +20,9 @@ import {
 
 import { ProductTiles } from "@/components/product-tiles";
 import { CustomItemDialog } from "@/components/custom-item-dialog";
+import { UnitSelector } from "@/components/unit-selector";
 
-import { CURRENCY, type CatalogItem } from "@/lib/catalog";
+import { CURRENCY, unitLabel, type CatalogItem, type Unit } from "@/lib/catalog";
 import { InvoicePDF, type InvoiceData, type InvoiceLine } from "@/components/invoice-pdf";
 
 type DraftLine = {
@@ -32,6 +33,10 @@ type DraftLine = {
   name: string;
   /** Emoji or undefined — used as the thumbnail in the receipt list. */
   emoji?: string;
+  /** Optional product photo URL; tile uses it, the receipt thumbnail too. */
+  image?: string;
+  /** Cashier-selected unit. Defaults to the catalog item's defaultUnit. */
+  unit: Unit;
   /** Stored as strings so empty + invalid inputs don't get coerced to NaN/0. */
   qty: string;
   rate: string;
@@ -106,12 +111,17 @@ export default function Home() {
   }
 
   /**
-   * Tap a catalog tile. POS pattern: if the same item is already on the
-   * ticket, bump its qty rather than appending a duplicate line.
+   * Tap a catalog tile. POS pattern: if a line already exists for this item
+   * AND the cashier hasn't changed its unit, bump qty. Otherwise add a new
+   * line at the catalog default unit. (Two lines for the same item but
+   * different units is intentional — e.g. 2 kg of brinjal AND 100 g of
+   * brinjal can co-exist on one ticket.)
    */
   function addCatalogItem(item: CatalogItem) {
     setLines((prev) => {
-      const existing = prev.find((l) => l.itemId === item.id);
+      const existing = prev.find(
+        (l) => l.itemId === item.id && l.unit === item.defaultUnit,
+      );
       if (existing) {
         const nextQty = (Number(existing.qty) || 0) + 1;
         return prev.map((l) =>
@@ -125,6 +135,8 @@ export default function Home() {
           itemId: item.id,
           name: item.name,
           emoji: item.emoji,
+          image: item.image,
+          unit: item.defaultUnit,
           qty: "1",
           rate: item.defaultRate != null ? String(item.defaultRate) : "",
         },
@@ -132,13 +144,14 @@ export default function Home() {
     });
   }
 
-  function addCustomItem(name: string, rate: number) {
+  function addCustomItem(name: string, rate: number, unit: Unit) {
     setLines((prev) => [
       ...prev,
       {
         uid: makeUid(),
         itemId: null,
         name,
+        unit,
         qty: "1",
         rate: String(rate),
       },
@@ -169,7 +182,7 @@ export default function Home() {
       ) {
         return null;
       }
-      return { id: l.uid, name, qty, rate };
+      return { id: l.uid, name, qty, rate, unit: l.unit };
     })
     .filter((x): x is InvoiceLine => x !== null);
 
@@ -340,99 +353,114 @@ export default function Home() {
                     const rate = Number(l.rate) || 0;
                     const amount = qty * rate;
                     return (
-                      <li
-                        key={l.uid}
-                        className="flex flex-wrap items-center gap-3 p-3"
-                      >
-                        <div
-                          aria-hidden="true"
-                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-muted text-2xl"
-                        >
-                          {l.emoji ?? "🧾"}
-                        </div>
+                      <li key={l.uid} className="space-y-2 p-3">
+                        {/* Top row — thumbnail, name, total, remove. */}
+                        <div className="flex items-center gap-3">
+                          <div
+                            aria-hidden="true"
+                            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-muted bg-cover bg-center text-2xl"
+                            style={
+                              l.image
+                                ? { backgroundImage: `url(${l.image})` }
+                                : undefined
+                            }
+                          >
+                            {l.image ? null : (l.emoji ?? "🧾")}
+                          </div>
 
-                        <div className="min-w-0 flex-1 basis-[160px]">
-                          <p className="truncate text-sm font-medium">
-                            {l.name}
-                          </p>
-                          {l.itemId == null ? (
-                            <p className="text-[11px] uppercase tracking-wide text-primary">
-                              Custom
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">
+                              {l.name}
                             </p>
-                          ) : null}
-                        </div>
+                            {l.itemId == null ? (
+                              <p className="text-[11px] uppercase tracking-wide text-primary">
+                                Custom
+                              </p>
+                            ) : null}
+                          </div>
 
-                        {/* Qty stepper — 44pt tap targets, big numerals. */}
-                        <div className="flex items-center gap-1">
+                          <div className="text-right text-base font-semibold tabular-nums">
+                            {CURRENCY} {amount.toFixed(2)}
+                          </div>
+
                           <Button
                             type="button"
-                            variant="outline"
+                            variant="ghost"
                             size="icon"
-                            className="h-11 w-11"
-                            onClick={() => bumpQty(l.uid, -1)}
-                            disabled={qty <= 1}
-                            aria-label={`Decrease ${l.name}`}
+                            className="h-11 w-11 text-muted-foreground hover:text-destructive"
+                            onClick={() => removeLine(l.uid)}
+                            aria-label={`Remove ${l.name}`}
                           >
-                            <Minus className="h-4 w-4" />
-                          </Button>
-                          <Input
-                            type="number"
-                            inputMode="numeric"
-                            min={1}
-                            step={1}
-                            value={l.qty}
-                            onChange={(e) =>
-                              updateLine(l.uid, { qty: e.target.value })
-                            }
-                            className="h-11 w-16 text-center text-base tabular-nums"
-                            aria-label={`Quantity for ${l.name}`}
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-11 w-11"
-                            onClick={() => bumpQty(l.uid, +1)}
-                            aria-label={`Increase ${l.name}`}
-                          >
-                            <Plus className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
 
-                        {/* Rate — editable so the cashier can override. */}
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs text-muted-foreground">
-                            {CURRENCY}
-                          </span>
-                          <Input
-                            type="number"
-                            inputMode="decimal"
-                            min={0}
-                            step="0.01"
-                            placeholder="0.00"
-                            value={l.rate}
-                            onChange={(e) =>
-                              updateLine(l.uid, { rate: e.target.value })
-                            }
-                            className="h-11 w-24 text-base tabular-nums"
-                            aria-label={`Rate for ${l.name}`}
+                        {/* Bottom row — qty stepper, unit selector, rate. */}
+                        <div className="flex flex-wrap items-center gap-2 pl-[60px]">
+                          <div className="flex items-center gap-1">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-11 w-11"
+                              onClick={() => bumpQty(l.uid, -1)}
+                              disabled={qty <= 1}
+                              aria-label={`Decrease ${l.name}`}
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                            <Input
+                              type="number"
+                              inputMode="decimal"
+                              min={0}
+                              step="any"
+                              value={l.qty}
+                              onChange={(e) =>
+                                updateLine(l.uid, { qty: e.target.value })
+                              }
+                              className="h-11 w-16 text-center text-base tabular-nums"
+                              aria-label={`Quantity for ${l.name}`}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-11 w-11"
+                              onClick={() => bumpQty(l.uid, +1)}
+                              aria-label={`Increase ${l.name}`}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </div>
+
+                          <UnitSelector
+                            value={l.unit}
+                            onChange={(unit) => updateLine(l.uid, { unit })}
+                            label={`Unit for ${l.name}`}
                           />
-                        </div>
 
-                        <div className="ml-auto text-right text-base font-semibold tabular-nums">
-                          {CURRENCY} {amount.toFixed(2)}
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground">
+                              {CURRENCY}
+                            </span>
+                            <Input
+                              type="number"
+                              inputMode="decimal"
+                              min={0}
+                              step="0.01"
+                              placeholder="0.00"
+                              value={l.rate}
+                              onChange={(e) =>
+                                updateLine(l.uid, { rate: e.target.value })
+                              }
+                              className="h-11 w-24 text-base tabular-nums"
+                              aria-label={`Rate for ${l.name}`}
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              / {unitLabel(l.unit)}
+                            </span>
+                          </div>
                         </div>
-
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-11 w-11 text-muted-foreground hover:text-destructive"
-                          onClick={() => removeLine(l.uid)}
-                          aria-label={`Remove ${l.name}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
                       </li>
                     );
                   })}

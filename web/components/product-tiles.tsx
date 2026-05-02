@@ -6,7 +6,7 @@ import { Plus, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CATALOG, CURRENCY, type CatalogItem } from "@/lib/catalog";
+import { CATALOG, CURRENCY, unitLabel, type CatalogItem } from "@/lib/catalog";
 
 type Props = {
   /** Tap a catalog tile → add (or increment) the matching line. */
@@ -91,7 +91,7 @@ function ProductTile({
       onClick={onClick}
       className={cn(
         // Touch-first: comfy minimum height, no hover-only states, big text.
-        "group flex min-h-[124px] flex-col items-center justify-between gap-1 rounded-lg border border-border bg-card p-2 text-center",
+        "group flex min-h-[156px] flex-col items-center justify-between gap-1.5 rounded-lg border border-border bg-card p-2 text-center",
         "transition-colors active:bg-accent active:scale-[0.98] sm:hover:border-primary/50 sm:hover:bg-accent",
         // Stop iOS from highlighting the whole tile on tap.
         "touch-manipulation select-none",
@@ -100,7 +100,7 @@ function ProductTile({
       <div
         aria-hidden="true"
         className={cn(
-          "flex h-14 w-14 items-center justify-center rounded-md bg-muted text-3xl",
+          "flex h-20 w-20 items-center justify-center rounded-md bg-muted text-4xl",
           // Real images, when added, fill the same square via background-image.
           item.image && "bg-cover bg-center",
         )}
@@ -111,12 +111,21 @@ function ProductTile({
       <span className="line-clamp-2 text-xs font-medium leading-tight">
         {item.name}
       </span>
-      {item.defaultRate != null ? (
-        <span className="text-xs tabular-nums text-muted-foreground">
-          {CURRENCY}
-          {item.defaultRate.toFixed(2)}
-        </span>
-      ) : null}
+      <span className="text-[11px] tabular-nums text-muted-foreground">
+        {item.defaultRate != null ? (
+          <>
+            {CURRENCY}
+            {item.defaultRate.toFixed(2)}
+            <span className="ml-1 text-muted-foreground/70">
+              / {unitLabel(item.defaultUnit)}
+            </span>
+          </>
+        ) : (
+          <span className="text-muted-foreground/70">
+            per {unitLabel(item.defaultUnit)}
+          </span>
+        )}
+      </span>
     </button>
   );
 }
@@ -127,13 +136,13 @@ function CustomTile({ onClick }: { onClick: () => void }) {
       type="button"
       onClick={onClick}
       className={cn(
-        "group flex min-h-[124px] flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-primary/40 bg-primary/5 p-2 text-center text-primary",
+        "group flex min-h-[156px] flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-primary/40 bg-primary/5 p-2 text-center text-primary",
         "transition-colors active:bg-primary/10 active:scale-[0.98] sm:hover:bg-primary/10",
         "touch-manipulation select-none",
       )}
     >
-      <div className="flex h-14 w-14 items-center justify-center rounded-md bg-primary/10">
-        <Plus className="h-6 w-6" />
+      <div className="flex h-20 w-20 items-center justify-center rounded-md bg-primary/10">
+        <Plus className="h-8 w-8" />
       </div>
       <span className="text-xs font-semibold">Custom item</span>
       <span className="text-[10px] text-primary/70">Type a name</span>

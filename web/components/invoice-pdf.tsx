@@ -8,13 +8,14 @@ import {
   Image,
   StyleSheet,
 } from "@react-pdf/renderer";
-import { BUSINESS, CURRENCY } from "@/lib/catalog";
+import { BUSINESS, CURRENCY, unitLabel, type Unit } from "@/lib/catalog";
 
 export type InvoiceLine = {
   id: string;
   name: string;
   qty: number;
   rate: number;
+  unit: Unit;
 };
 
 export type InvoiceData = {
@@ -196,8 +197,12 @@ export function InvoicePDF({ data }: { data: InvoiceData }) {
             <View key={l.id} style={styles.tableRow}>
               <Text style={styles.colIdx}>{i + 1}</Text>
               <Text style={styles.colName}>{l.name}</Text>
-              <Text style={styles.colQty}>{l.qty}</Text>
-              <Text style={styles.colRate}>{money(l.rate)}</Text>
+              <Text style={styles.colQty}>
+                {l.qty} {unitLabel(l.unit)}
+              </Text>
+              <Text style={styles.colRate}>
+                {money(l.rate)} / {unitLabel(l.unit)}
+              </Text>
               <Text style={styles.colAmt}>{money(l.qty * l.rate)}</Text>
             </View>
           ))}

@@ -13,13 +13,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CURRENCY } from "@/lib/catalog";
+import { UnitSelector } from "@/components/unit-selector";
+import { CURRENCY, type Unit } from "@/lib/catalog";
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Called with a non-empty trimmed name and a finite non-negative rate. */
-  onConfirm: (name: string, rate: number) => void;
+  /** Called with a non-empty trimmed name, finite non-negative rate, and unit. */
+  onConfirm: (name: string, rate: number, unit: Unit) => void;
 };
 
 /**
@@ -30,12 +31,14 @@ type Props = {
 export function CustomItemDialog({ open, onOpenChange, onConfirm }: Props) {
   const [name, setName] = useState("");
   const [rate, setRate] = useState("");
+  const [unit, setUnit] = useState<Unit>("single");
 
   // Reset on close so the next open starts clean — avoids stale typed values.
   useEffect(() => {
     if (!open) {
       setName("");
       setRate("");
+      setUnit("single");
     }
   }, [open]);
 
@@ -46,7 +49,7 @@ export function CustomItemDialog({ open, onOpenChange, onConfirm }: Props) {
 
   function handleConfirm() {
     if (!canSubmit) return;
-    onConfirm(trimmedName, numericRate);
+    onConfirm(trimmedName, numericRate, unit);
     onOpenChange(false);
   }
 
@@ -56,8 +59,8 @@ export function CustomItemDialog({ open, onOpenChange, onConfirm }: Props) {
         <DialogHeader>
           <DialogTitle>Add custom item</DialogTitle>
           <DialogDescription>
-            Anything not in the catalog. Name and rate go straight onto the
-            invoice.
+            Anything not in the catalog. Name, rate, and unit go straight onto
+            the invoice.
           </DialogDescription>
         </DialogHeader>
 
@@ -73,14 +76,18 @@ export function CustomItemDialog({ open, onOpenChange, onConfirm }: Props) {
             <Input
               id="custom-item-name"
               autoFocus
-              placeholder="e.g. Pomegranate (each)"
+              placeholder="e.g. Pomegranate"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="h-12 text-base"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="custom-item-rate">Rate ({CURRENCY})</Label>
+            <Label>Unit</Label>
+            <UnitSelector value={unit} onChange={setUnit} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="custom-item-rate">Rate ({CURRENCY} per {unit})</Label>
             <Input
               id="custom-item-rate"
               type="number"
