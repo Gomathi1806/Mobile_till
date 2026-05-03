@@ -23,6 +23,7 @@ import { CustomItemDialog } from "@/components/custom-item-dialog";
 import { UnitSelector } from "@/components/unit-selector";
 
 import { CURRENCY, unitLabel, type CatalogItem, type Unit } from "@/lib/catalog";
+import { assetUrl } from "@/lib/asset-url";
 import { InvoicePDF, type InvoiceData, type InvoiceLine } from "@/components/invoice-pdf";
 
 type DraftLine = {
@@ -162,8 +163,14 @@ export default function Home() {
     setLines((prev) =>
       prev.map((l) => {
         if (l.uid !== uid) return l;
-        const next = Math.max(1, (Number(l.qty) || 0) + delta);
-        return { ...l, qty: String(next) };
+        const isWeightUnit = l.unit === "kg" || l.unit === "g";
+        const minQty = isWeightUnit ? 0 : 1;
+        const next = Math.max(minQty, (Number(l.qty) || 0) + delta);
+        // For weight units keep up to 3 decimal places; integer units stay whole.
+        const formatted = isWeightUnit
+          ? String(Math.round(next * 1000) / 1000)
+          : String(Math.round(next));
+        return { ...l, qty: formatted };
       }),
     );
   }
@@ -361,7 +368,7 @@ export default function Home() {
                             className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-muted bg-cover bg-center text-2xl"
                             style={
                               l.image
-                                ? { backgroundImage: `url(${l.image})` }
+                                ? { backgroundImage: `url(${assetUrl(l.image)})` }
                                 : undefined
                             }
                           >
@@ -395,43 +402,67 @@ export default function Home() {
                           </Button>
                         </div>
 
-                        {/* Bottom row — qty stepper, unit selector, rate. */}
+                        {/* Bottom row — qty/weight input, unit selector, rate. */}
                         <div className="flex flex-wrap items-center gap-2 pl-[60px]">
-                          <div className="flex items-center gap-1">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              className="h-11 w-11"
-                              onClick={() => bumpQty(l.uid, -1)}
-                              disabled={qty <= 1}
-                              aria-label={`Decrease ${l.name}`}
-                            >
-                              <Minus className="h-4 w-4" />
-                            </Button>
-                            <Input
-                              type="number"
-                              inputMode="decimal"
-                              min={0}
-                              step="any"
-                              value={l.qty}
-                              onChange={(e) =>
-                                updateLine(l.uid, { qty: e.target.value })
-                              }
-                              className="h-11 w-16 text-center text-base tabular-nums"
-                              aria-label={`Quantity for ${l.name}`}
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              className="h-11 w-11"
-                              onClick={() => bumpQty(l.uid, +1)}
-                              aria-label={`Increase ${l.name}`}
-                            >
-                              <Plus className="h-4 w-4" />
-                            </Button>
-                          </div>
+                          {/* Weight units (kg/g): plain typed input, matching the rate field UX.
+                              Count units (bunch/single): integer stepper with +/− buttons. */}
+                          {l.unit === "kg" || l.unit === "g" ? (
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-muted-foreground w-10 text-right">
+                                {l.unit === "kg" ? "kg" : "g"}
+                              </span>
+                              <Input
+                                type="number"
+                                inputMode="decimal"
+                                min={0}
+                                step={l.unit === "kg" ? "0.001" : "1"}
+                                placeholder={l.unit === "kg" ? "0.000" : "0"}
+                                value={l.qty}
+                                onChange={(e) =>
+                                  updateLine(l.uid, { qty: e.target.value })
+                                }
+                                className="h-11 w-28 text-base tabular-nums"
+                                aria-label={`Weight in ${l.unit} for ${l.name}`}
+                              />
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-11 w-11"
+                                onClick={() => bumpQty(l.uid, -1)}
+                                disabled={qty <= 1}
+                                aria-label={`Decrease ${l.name}`}
+                              >
+                                <Minus className="h-4 w-4" />
+                              </Button>
+                              <Input
+                                type="number"
+                                inputMode="numeric"
+                                min={1}
+                                step="1"
+                                placeholder="1"
+                                value={l.qty}
+                                onChange={(e) =>
+                                  updateLine(l.uid, { qty: e.target.value })
+                                }
+                                className="h-11 w-20 text-center text-base tabular-nums"
+                                aria-label={`Quantity for ${l.name}`}
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-11 w-11"
+                                onClick={() => bumpQty(l.uid, +1)}
+                                aria-label={`Increase ${l.name}`}
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
 
                           <UnitSelector
                             value={l.unit}

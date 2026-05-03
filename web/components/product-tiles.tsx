@@ -6,6 +6,7 @@ import { Plus, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { assetUrl } from "@/lib/asset-url";
 import { CATALOG, CURRENCY, unitLabel, type CatalogItem } from "@/lib/catalog";
 
 type Props = {
@@ -104,7 +105,11 @@ function ProductTile({
           // Real images, when added, fill the same square via background-image.
           item.image && "bg-cover bg-center",
         )}
-        style={item.image ? { backgroundImage: `url(${item.image})` } : undefined}
+        style={
+          item.image
+            ? { backgroundImage: `url(${assetUrl(item.image)})` }
+            : undefined
+        }
       >
         {item.image ? null : <span>{item.emoji}</span>}
       </div>
