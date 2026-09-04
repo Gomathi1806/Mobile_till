@@ -223,22 +223,47 @@ export default function Home() {
       a.remove();
       URL.revokeObjectURL(url);
 
-      // 3) Upload + email in the background
+      // 3) Record to DB + upload + email in the background
       const fd = new FormData();
       fd.append("pdf", blob, `${invoiceNumber}.pdf`);
       fd.append("invoiceNumber", invoiceNumber);
+      fd.append("invoiceDate", invoiceDate);
       fd.append("customerName", customerName);
+      fd.append("customerAddress", customerAddress);
       fd.append("customerEmail", trimmedEmail);
       fd.append("total", `${CURRENCY} ${total.toFixed(2)}`);
+      fd.append("totalNumeric", total.toFixed(2));
+      // Line items go to Postgres — powers reports + reconciliation.
+      fd.append(
+        "linesJson",
+        JSON.stringify(
+          validLines.map((l) => ({
+            name: l.name,
+            qty: l.qty,
+            rate: l.rate,
+            unit: l.unit,
+          })),
+        ),
+      );
 
       const res = await fetch("/api/invoice", { method: "POST", body: fd });
       const result = (await res.json()) as {
         ok: boolean;
+        invoiceId: string | null;
+        dbError: string | null;
         blobUrl: string | null;
         blobError: string | null;
         emailId: string | null;
         emailError: string | null;
       };
+
+      if (result.invoiceId) {
+        toast.success("Invoice recorded", {
+          description: `Saved to till database (id ${result.invoiceId.slice(0, 8)})`,
+        });
+      } else if (result.dbError) {
+        toast.error("Database save failed", { description: result.dbError });
+      }
 
       if (result.blobUrl) {
         toast.success("Saved to Vercel Blob", {
